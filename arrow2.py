@@ -4,6 +4,7 @@ matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import time
+import tf
 
 import math
 
@@ -11,13 +12,13 @@ import math
 
 class arm:
         def __init__(self):
-                #                alpha      a           d       theta
-                DH =  np.array([[  0.,      0.,       373.,         0.],
-                                [-90.,      0.,         0.,         0.],
-                                [  0.,    340.,         0.,         0.],
-                                [-90.,      0.,       338.,         0.],
-                                [ 90.,      0.,         0.,         0.],
-                                [-90.,      0.,         0.,         0.]])
+                #                      alpha      a (mm)      d       theta
+                DH =  np.array([[        0.,      0.,       373.,         0.],
+                                [-math.pi/2,      0.,         0.,         0.],
+                                [        0.,    340.,         0.,         0.],
+                                [-math.pi/2,      0.,       338.,         0.],
+                                [ math.pi/2,      0.,         0.,         0.],
+                                [-math.pi/2,      0.,         0.,         0.]])
                 self.alpha0 = DH[0,0]
                 self.alpha1 = DH[1,0]
                 self.alpha2 = DH[2,0]
@@ -63,8 +64,8 @@ class arm:
         def setGoal_W(self,Px,Py,Pz,Roll,Pitch,Yaw,RunTime):
                 self.px = Px-100
                 self.py = Py-100
-                self.pz
-                self.yaw = Yaw = Pz
+                self.pz = Pz
+                self.yaw = Yaw 
                 self.roll = Roll
                 self.pitch = Pitch
                 self.runTime = RunTime
@@ -81,15 +82,18 @@ class arm:
                                 [ 0, math.cos(self.roll), -math.sin(self.roll)],
                                 [ 0, math.sin(self.roll),  math.cos(self.roll)]])
 
-                Rrpy = r_z * r_y * r_x
-                lx = Rrpy[0, 0]
-                ly = Rrpy[1, 0]
-                lz = Rrpy[2, 0]
-                self.wx = self.px - (self.d6 + self.d5) * lx
-                self.wy = self.py - (self.d6 + self.d5) * ly
-                self.wz = self.pz - (self.d6 + self.d5) * lz
+                
+                off = np.array([0,-10,0])
+                self.Rrpy = np.dot(r_z , np.dot(r_y,r_x))
+                #print(np.dot(self.Rrpy , off.T))
+                W = np.dot(r_z , np.dot(r_y , np.dot(r_x , off.T)))
+                
+                #print(W)
+                self.wx = self.px + W[0]
+                self.wy = self.py + W[1]
+                self.wz = self.pz + W[2]
                 self.goalF = 1
-                self.wz = 35
+                #self.wz = 35
 
         def FindTheta1_3(self):
                 self.theta1 = math.atan(self.wy/self.wx)
@@ -111,17 +115,56 @@ class arm:
                 self.theta3 = (math.pi/2) - phy3
                 #print(self.theta3)
         #def Twto3():
+        def craig_dh_Trans(self,theta, alpha_, d, a_):#(theta_i, alpha_i-1, d_i, a_i-1)
+                Ta_b = np.array([[                  math.cos(theta),                 -math.sin(theta),                 0,                  a_],
+                                 [ math.sin(theta)*math.cos(alpha_), math.cos(theta)*math.cos(alpha_), -math.sin(alpha_), -math.sin(alpha_)*d],
+                                 [ math.sin(theta)*math.sin(alpha_), math.cos(theta)*math.sin(alpha_),  math.cos(alpha_),  math.cos(alpha_)*d],
+                                 [                                0,                                0,                 0,                   1]])
+                return Ta_b
 
+        def FindTheta4_6(self):
+                T0_1 = self.craig_dh_Trans(self.theta1,self.alpha0,self.d1,self.a0)
+                T1_2 = self.craig_dh_Trans(self.theta2,self.alpha1,self.d2,self.a1)
+                T2_3 = self.craig_dh_Trans(self.theta3,self.alpha2,self.d3,self.a2)
+
+                T0_3 = np.dot(T0_1,np.dot(T1_2,T2_3))
+                R0_3 = T0_3[:3,:3]
+                #print(R0_3)
+
+                R6_c = np.array([[0.,-1., 0.],
+                                 [0., 0.,-1.],
+                                 [1., 0., 0.]])
+                Rw_c = np.array([[1., 0., 0.],
+                                 [0., 1., 0.],
+                                 [0., 0., 1.]])
+                #print(np.linalg.inv(self.Rrpy))
+                R3_6 = np.dot(R0_3,np.dot(Rw_c,np.linalg.inv(self.Rrpy)))
+                R3_6 = np.array([[ 0.7627 ,  0.1477 , 0.6297],
+                                 [-0.6468 ,  0.1744 , 0.7424],
+                                 [      0 , -0.9735 , 0.2286]])
+                print(R3_6[0,1])
+
+                print(R3_6)
+                betaT  = math.atan((math.sqrt(R3_6[2,0]**2+R3_6[2,1]**2))/R3_6[2,2])
+                alphaT = math.atan((R3_6[1,2]/math.sin(betaT))/(R3_6[0,2]/math.sin(betaT)))
+                gammaT = math.atan((R3_6[2,1]/math.sin(betaT))/(-R3_6[2,0]/math.sin(betaT)))
+                print("b= %f" %float(betaT*(180./math.pi)))
+                print("a= %f" %float(alphaT*(180./math.pi)))
+                print("g= %f" %float(gammaT*(180./math.pi)))
 
 if __name__ == "__main__":
         Arm = arm()
         #Arm.setGoal_W(340*math.cos(math.pi/6)+100,340*math.sin(math.pi/6)+100,35,0,0,0,1)
-        Arm.setGoal_W(340*math.cos(math.pi/5)+100,340*math.sin(math.pi/5)+100,35,0,0,0,1)
+        Arm.setGoal_W(500,340,35,0,0,0,1)
         Arm.FindTheta1_3()
+        Arm.FindTheta4_6()
         #print ("d= %f" %float(Arm.theta1*(180./math.pi)))
-        print ("wx = %f " %Arm.wx)
-        print ("wy = %f" %Arm.wy)
-        print ("wz = %f" %Arm.wz)
+        print ("px = %f " %(Arm.px+100.))
+        print ("py = %f " %(Arm.py+100.))
+        print ("pz = %f " %Arm.pz)
+        print ("wx = %f " %(Arm.wx+100.))
+        print ("wy = %f " %(Arm.wy+100.))
+        print ("wz = %f " %Arm.wz)
         print ("theta1 = %f deg" %float(Arm.theta1*(180./math.pi)))
         print ("theta2 = %f deg" %float(Arm.theta2*(180./math.pi)))
         print ("theta3 = %f deg" %float(Arm.theta3*(180./math.pi)))
