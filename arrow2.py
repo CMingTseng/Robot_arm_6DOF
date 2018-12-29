@@ -83,8 +83,8 @@ class arm:
                                 [ 0, math.sin(self.roll),  math.cos(self.roll)]])
 
                 
-                off = np.array([0,-10,0])
-                self.Rrpy = np.dot(r_z , np.dot(r_y,r_x))
+                off = np.array([0,0,-10])
+                self.Rrpy = np.dot( np.dot(r_x,r_y),r_z )
                 #print(np.dot(self.Rrpy , off.T))
                 W = np.dot(r_z , np.dot(r_y , np.dot(r_x , off.T)))
                 
@@ -139,9 +139,9 @@ class arm:
                                  [0., 0., 1.]])
                 #print(np.linalg.inv(self.Rrpy))
                 R3_6 = np.dot(R0_3,np.dot(Rw_c,np.linalg.inv(self.Rrpy)))
-                R3_6 = np.array([[ 0.7627 ,  0.1477 , 0.6297],
-                                 [-0.6468 ,  0.1744 , 0.7424],
-                                 [      0 , -0.9735 , 0.2286]])
+                #R3_6 = np.array([[ 0.7627 ,  0.1477 , 0.6297],
+                                 #[-0.6468 ,  0.1744 , 0.7424],
+                                 #[      0 , -0.9735 , 0.2286]])
                 print(R3_6[0,1])
 
                 print(R3_6)
@@ -152,10 +152,14 @@ class arm:
                 print("a= %f" %float(alphaT*(180./math.pi)))
                 print("g= %f" %float(gammaT*(180./math.pi)))
 
+        #def plot(self):
+
+
 if __name__ == "__main__":
         Arm = arm()
         #Arm.setGoal_W(340*math.cos(math.pi/6)+100,340*math.sin(math.pi/6)+100,35,0,0,0,1)
-        Arm.setGoal_W(500,340,35,0,0,0,1)
+        #Arm.setGoal_W(500,340,35,-math.pi/2,0,-math.pi/2,1)
+        Arm.setGoal_W(500,100,350,0,0,0,1)
         Arm.FindTheta1_3()
         Arm.FindTheta4_6()
         #print ("d= %f" %float(Arm.theta1*(180./math.pi)))
