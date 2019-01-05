@@ -13,10 +13,10 @@ import math
 class arm:
         def __init__(self):
                 #                      alpha      a (mm)      d       theta
-                DH =  np.array([[        0.,      0.,       370.,         0.],
+                DH =  np.array([[        0.,      0.,       360.,         0.],
                                 [-math.pi/2,      0.,         0.,         0.],
-                                [        0.,    340.,         0.,         0.],
-                                [-math.pi/2,      0.,       320.,         0.],
+                                [        0.,    330.,         0.,         0.],
+                                [-math.pi/2,      0.,       300.,         0.],
                                 [ math.pi/2,      0.,         0.,         0.],
                                 [-math.pi/2,      0.,         0.,         0.]])
                 self.alpha0 = DH[0,0]
@@ -47,6 +47,12 @@ class arm:
                 self.theta4 = 0
                 self.theta5 = 0
                 self.theta6 = 0
+
+                self.joint0 = np.array([0,0,0,1])
+                self.joint1 = np.array([0,0,0,1])
+                self.joint2 = np.array([0,0,0,1])
+                self.joint3 = np.array([0,0,0,1])
+                self.joint4 = np.array([0,0,20,1])
 
                 self.wx = 0
                 self.wy = 0
@@ -83,7 +89,7 @@ class arm:
                                 [ 0, math.sin(self.roll),  math.cos(self.roll)]])
 
                 
-                off_6 = np.array([0,0,10])
+                off_6 = np.array([0,0,20])
                 self.Rrpy = np.dot( np.dot(r_x,r_y),r_z )
                 #print(np.dot(self.Rrpy , off.T))
                 W = np.dot(self.Rrpy, off_6.T*(1))
@@ -123,21 +129,16 @@ class arm:
                 return Ta_b
 
         def FindTheta4_6(self):
-                T0_1 = self.craig_dh_Trans(self.theta1,self.alpha0,self.d1,self.a0)
-                T1_2 = self.craig_dh_Trans(self.theta2,self.alpha1,self.d2,self.a1)
-                T2_3 = self.craig_dh_Trans(self.theta3,self.alpha2,self.d3,self.a2)
+                self.T0_1 = self.craig_dh_Trans(self.theta1,self.alpha0,self.d1,self.a0)
+                self.T1_2 = self.craig_dh_Trans(self.theta2,self.alpha1,self.d2,self.a1)
+                self.T2_3 = self.craig_dh_Trans(self.theta3,self.alpha2,self.d3,self.a2)
 
-                T0_3 = np.dot(T0_1,np.dot(T1_2,T2_3))
-                R0_3 = T0_3[:3,:3]
+                self.T0_2 = np.dot(self.T0_1,self.T1_2)
+                self.T0_3 = np.dot(self.T0_2,self.T2_3)
+
+                R0_3 = self.T0_3[:3,:3]
                 #print(R0_3)
 
-                # R6_c = np.array([[0.,-1., 0.],
-                #                  [0., 0.,-1.],
-                #                  [1., 0., 0.]])
-                # Rw_c = np.array([[1., 0., 0.],
-                #                  [0., 1., 0.],
-                #                  [0., 0., 1.]])
-                #print(np.linalg.inv(self.Rrpy))
                 
                 #R0_3*R3_6 = Rrpy
                 R3_6 = np.dot(np.linalg.inv(R0_3),self.Rrpy)
@@ -158,22 +159,73 @@ class arm:
                 self.theta4 = gammaT
                 self.theta5 = alphaT
                 self.theta6 = betaT
+
+                self.T3_4 = self.craig_dh_Trans(self.theta4,self.alpha3,self.d4,self.a3)
+                self.T4_5 = self.craig_dh_Trans(self.theta5,self.alpha4,self.d5,self.a4)
+                self.T5_6 = self.craig_dh_Trans(self.theta6,self.alpha5,self.d6,self.a5)
                 
+                self.T0_4 = np.dot(self.T0_3,self.T3_4)
+                self.T0_5 = np.dot(self.T0_4,self.T4_5)
+                self.T0_6 = np.dot(self.T0_5,self.T5_6)
                 # print("b= %f" %float(betaT*(180./math.pi)))
                 # print("a= %f" %float(alphaT*(180./math.pi)))
                 # print("g= %f" %float(gammaT*(180./math.pi)))
+        def ComputeDisplayPoint(self):
+                
+                self.joint0 = self.joint0.T
+                self.joint1 = np.dot(self.T0_1,self.joint1.T).T
+                self.joint2 = np.dot(self.T0_3,self.joint2.T).T
+                self.joint3 = np.dot(self.T0_4,self.joint3.T).T
+                self.joint4 = np.dot(self.T0_6,self.joint4.T).T
 
-        #def plot(self):
+                self.joint0 = self.joint0[:3]
+                self.joint1 = self.joint1[:3]
+                self.joint2 = self.joint2[:3]
+                self.joint3 = self.joint3[:3]
+                self.joint4 = self.joint4[:3]
+
+
+        def plot(self):
+                plt.ion()
+                fig = plt.figure(figsize=(10,60))
+                plt.subplots_adjust(left=0, bottom=0, right=1, top=1)
+                ax = fig.add_subplot(111, projection='3d')
+
+                ax.set_xlim(0, 600)
+                ax.set_ylim(0, 600)
+                ax.set_zlim(0, 600)
+                ax.set_xlabel('X axis')
+                ax.set_ylabel('Y axis')
+                ax.set_zlabel('Z axis')
+
+                joint = np.array([self.joint0,self.joint1,self.joint2,self.joint3,self.joint4])
+                joint = joint.T
+
+                X = joint[0][:]
+                Y = joint[1][:]
+                Z = np.array([joint[2][:]])
+
+                for i in range(len(X)):
+                        text = "(%d %d %d)" % (X[i],Y[i],Z[0][i])
+                        ax.text(X[i]+0.1, Y[i]+0.2, Z[0][i]+0.2,text,fontsize=8) 
+                        ax.plot_wireframe(X, Y, Z, rstride=10, cstride=10)
+                        ax.scatter(X, Y, Z, c='b', marker='o')
+
+                plt.show(block=True)
+                #time.sleep(5)
+
+
 
 
 if __name__ == "__main__":
         Arm = arm()
-        Arm.setGoal_W(340*math.cos(math.pi/6),340*math.sin(math.pi/6),40,math.pi,0,0,1)
+        #Arm.setGoal_W(330*math.cos(math.pi/6),330*math.sin(math.pi/6),40,math.pi,0,0,1)
         #Arm.setGoal_W(500,340,35,-math.pi/2,0,-math.pi/2,1)
-        #Arm.setGoal_W(340,0,40,math.pi,0,0,1)
-        #Arm.setGoal_W(100,100,70,math.pi,0,0,1)
+        #Arm.setGoal_W(330,0,40,math.pi,0,0,1)
+        Arm.setGoal_W(100,400,70,-math.pi/2,0,math.pi/6,1)
         Arm.FindTheta1_3()
         Arm.FindTheta4_6()
+        Arm.ComputeDisplayPoint()
         #print ("d= %f" %float(Arm.theta1*(180./math.pi)))
         print ("px = %f " %(Arm.px))
         print ("py = %f " %(Arm.py))
@@ -187,6 +239,15 @@ if __name__ == "__main__":
         print ("theta4 = %f deg" %float(Arm.theta4*(180./math.pi)))
         print ("theta5 = %f deg" %float(Arm.theta5*(180./math.pi)))
         print ("theta6 = %f deg" %float(Arm.theta6*(180./math.pi)))
+        print ("joint0 = %s " %str(Arm.joint0))
+        print ("joint1 = %s " %str(Arm.joint1))
+        print ("joint2 = %s " %str(Arm.joint2))
+        print ("joint3 = %s " %str(Arm.joint3))
+        print ("joint4 = %s " %str(Arm.joint4))
+
+        
         print ("time = %f" %Arm.runTime)
+        Arm.plot()
+        
 
 
