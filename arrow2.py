@@ -211,6 +211,7 @@ class arm:
                         ax.plot_wireframe(X, Y, Z, rstride=10, cstride=10)
                         ax.scatter(X, Y, Z, c='b', marker='o')
 
+                
                 plt.show(block=True)
                 #time.sleep(5)
 
